@@ -2,6 +2,22 @@
 
 更新时间：2026-03-05
 
+## 0. 实施状态快照
+
+状态更新时间：2026-03-05
+
+1. Phase 1 第一版代码已提交（协议语义与测试补充）。
+2. 用户已完成“安装新插件并重启”动作。
+3. 真实端到端握手 smoke 测试已完成（2026-03-05）。
+4. Phase 2 第一版代码已在工作区完成（Codex 配置生成 + UI + i18n），待构建验证与提交。
+5. Phase 1 一致性补丁已在工作区完成（`-32600` 映射 HTTP `400`），待运行态复验。
+6. Phase 3/4 尚未开始。
+
+进度与调试详情见：
+
+1. `docs/codex-implementation-progress.md`
+2. `docs/codex-debug-playbook.md`
+
 ## 1. 目标与范围
 
 目标：在不破坏现有 Claude/Cursor/Gemini/Qwen 等客户端兼容性的前提下，使 `zotero-mcp` 稳定支持 Codex 通过 Streamable HTTP 完成握手并可调用工具。
@@ -102,7 +118,7 @@
 1. `zotero-mcp-plugin/src/modules/clientConfigGenerator.ts`
    - 新增 `codex` 客户端类型。
    - 补充 Codex CLI 指引与命令示例。
-   - 若需输出 TOML，需补充“非 JSON 输出模式”能力（当前 `generateConfig` 默认 `JSON.stringify`，需显式设计兼容方案）。
+   - 新增 TOML 输出能力（通过 `renderConfig` 分支）。
 2. `zotero-mcp-plugin/addon/content/preferences.xhtml`
    - 客户端下拉新增 Codex。
 3. i18n
