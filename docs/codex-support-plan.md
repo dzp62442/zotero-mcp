@@ -119,8 +119,9 @@
    - 新增 `codex` 客户端类型。
    - 补充 Codex CLI 指引与命令示例。
    - 新增 TOML 输出能力（通过 `renderConfig` 分支）。
+   - Codex 配置默认带 `headers.Content-Type`，与 Claude Code / cc-switch 统一配置兼容。
 2. `zotero-mcp-plugin/addon/content/preferences.xhtml`
-   - 客户端下拉新增 Codex。
+   - 客户端下拉新增 Codex，且顺序置于 Claude Code 之后（第 2 项）。
 3. i18n
    - `addon/locale/en-US/preferences.ftl`
    - `addon/locale/zh-CN/preferences.ftl`

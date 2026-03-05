@@ -55,9 +55,16 @@
 
 1. `clientConfigGenerator.ts` 新增 `codex` 客户端模板。
 2. 新增 TOML 输出分支（`renderConfig`），支持为 Codex 生成 `[mcp_servers."..."]` 配置片段。
-3. `generateFullGuide` 代码块语言支持动态切换（`json`/`toml`）。
-4. `preferences.xhtml` 客户端下拉新增 Codex 选项。
-5. `addon/locale/en-US` 与 `addon/locale/zh-CN` 补充 Codex 文案与配置指引。
+3. Codex 配置默认包含 HTTP header：
+   - `[mcp_servers."...".headers]`
+   - `"Content-Type" = "application/json"`
+4. 设置页客户端顺序调整为：
+   - 第 1 项 `Claude Code`
+   - 第 2 项 `Codex CLI`
+5. Codex 指引补充 “与 Claude Code / cc-switch 统一配置” 说明（同 endpoint + headers）。
+6. `generateFullGuide` 代码块语言支持动态切换（`json`/`toml`）。
+7. `preferences.xhtml` 客户端下拉新增 Codex 选项。
+8. `addon/locale/en-US` 与 `addon/locale/zh-CN` 补充 Codex 文案与配置指引。
 
 ### 2.4 Phase 1 运行态测试记录（2026-03-05）
 
@@ -96,7 +103,10 @@
 
 1. 对 Phase 2 改动执行构建与手工验证：
    - 生成 `codex` 配置时输出 TOML
+   - Codex TOML 包含 `headers.Content-Type`
+   - 设置页顺序为 `Claude Code` 后接 `Codex CLI`
    - 指引命令与 issue #24 建议命令一致
+   - 验证可与 Claude Code / cc-switch 统一配置
 2. 安装新构建包并复验“无 `id` request”场景为 HTTP `400`。
 3. 提交 Phase 2 + 协议一致性修复代码（独立 commit）。
 4. Phase 3 文档同步：

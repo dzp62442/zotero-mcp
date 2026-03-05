@@ -12,8 +12,9 @@
 2. 用户已确认：已安装新插件并重启 Zotero。
 3. Phase 2 第一版代码已在工作区完成（尚未提交）：
    - 新增 Codex 客户端配置生成（含 TOML 输出）
-   - 设置页新增 Codex 选项
-   - 中英文指引文案已补齐
+   - Codex TOML 默认包含 `headers.Content-Type`
+   - 设置页顺序为：`Claude Code` 第一、`Codex CLI` 第二
+   - 中英文指引文案已补齐（含 cc-switch 统一配置说明）
 4. Phase 1 运行态测试已完成（2026-03-05）：
    - 握手链路通过：`GET /mcp`、`initialize`、`notifications/initialized`、`tools/list`
    - `notifications/initialized` 返回 `202 + 空 body`
