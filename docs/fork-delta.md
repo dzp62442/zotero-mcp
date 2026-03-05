@@ -55,7 +55,7 @@
 
 ## 5. 本地调试指令
 
-## 5.1 依赖与构建
+### 5.1 依赖与构建
 
 ```bash
 cd /home/dzp62442/Libraries/zotero-mcp/zotero-mcp-plugin
@@ -67,7 +67,7 @@ npm run build
 
 - `.scaffold/build/zotero-mcp-plugin.xpi`
 
-## 5.2 开发运行与测试
+### 5.2 开发运行与测试
 
 ```bash
 # 启动开发模式（需要 Zotero 可执行路径）
@@ -77,7 +77,7 @@ ZOTERO_PLUGIN_ZOTERO_BIN_PATH=/path/to/zotero npm run start
 CI=1 ZOTERO_PLUGIN_ZOTERO_BIN_PATH=/path/to/zotero npm test -- --no-watch
 ```
 
-## 5.3 MCP 握手检查
+### 5.3 MCP 握手检查
 
 ```bash
 curl -i http://127.0.0.1:23120/mcp
@@ -102,19 +102,19 @@ curl -sS http://127.0.0.1:23120/mcp/status
 
 ## 7. Claude Code 启动失败 bug 复盘
 
-## 7.1 现象
+### 7.1 现象
 
 1. Codex 启动正常。
 2. Claude Code 启动时 `zotero-mcp` 显示 `failed`。
 3. 手动 `reconnect` 后可正常使用。
 
-## 7.2 根因
+### 7.2 根因
 
 1. `/mcp` POST body 提取未按 `Content-Length` 截断。
 2. 当同连接上后续请求字节被拼入当前 body 时，会触发 `-32700 Parse error`。
 3. 服务端曾返回 `Connection: keep-alive`，但实现实际会在 finally 关闭流，语义不一致。
 
-## 7.3 修复
+### 7.3 修复
 
 涉及文件：
 
@@ -127,7 +127,7 @@ curl -sS http://127.0.0.1:23120/mcp/status
 2. `/mcp` 不再宣称 keep-alive。
 3. `keepAliveSupported` 改为 `false`。
 
-## 7.4 验证
+### 7.4 验证
 
 1. 本地 `npm run build` 通过。
 2. 握手与错误路径检查通过。
