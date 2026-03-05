@@ -1,206 +1,90 @@
-# Zotero MCP 支持 Codex 开发方案（可执行版）
+# Zotero MCP 支持 Codex 开发方案（执行版）
 
 更新时间：2026-03-05
 
-## 0. 实施状态快照
+## 0. 当前状态快照
 
-状态更新时间：2026-03-05
+1. Phase 1（协议兼容）已完成并提交。
+2. Phase 2（Codex 配置生成 + UI + i18n）已完成并提交。
+3. Phase 3（README/README-zh 一致性）已完成（当前文档修订）。
+4. Phase 4（发布与回归）未开始，仅保留本地验证与回归准备。
 
-1. Phase 1 第一版代码已提交（协议语义与测试补充）。
-2. 用户已完成“安装新插件并重启”动作。
-3. 真实端到端握手 smoke 测试已完成（2026-03-05）。
-4. Phase 2 第一版代码已在工作区完成（Codex 配置生成 + UI + i18n），待构建验证与提交。
-5. Phase 1 一致性补丁已在工作区完成（`-32600` 映射 HTTP `400`），待运行态复验。
-6. Phase 3/4 尚未开始。
+相关代码提交：
 
-进度与调试详情见：
-
-1. `docs/codex-implementation-progress.md`
-2. `docs/codex-debug-playbook.md`
+1. `50e2811` `fix: support codex initialized notification handshake`
+2. `b8d879f` `feat: add codex client config and align invalid request status`
+3. `09a55fd` `fix: align codex order and header compatibility with claude config`
 
 ## 1. 目标与范围
 
-目标：在不破坏现有 Claude/Cursor/Gemini/Qwen 等客户端兼容性的前提下，使 `zotero-mcp` 稳定支持 Codex 通过 Streamable HTTP 完成握手并可调用工具。
+目标：在不破坏现有 Claude/Cursor/Gemini/Qwen 客户端兼容性的前提下，让 `zotero-mcp` 对 Codex CLI 提供稳定可复现的 Streamable HTTP 接入能力。
 
 范围边界：
 
-1. 本轮“必达”目标是 **Codex CLI** 稳定可用。
-2. “Codex Desktop”仅在确认存在可复现接入方式后纳入；否则在文档中标注“待验证”。
-3. 不做大规模架构重构，仅在协议层、配置层、文档层做最小必要改动。
+1. 本轮硬目标为 Codex CLI。
+2. Codex Desktop 若无稳定接入方式，标注“待验证”，不阻塞当前工作。
+3. 只做协议层、配置层、文档层的必要改动，不做架构重写。
 
-## 2. 根因与现状
+## 2. 关键决策
 
-基于上游 issue 与当前代码现状，可确认两类阻塞：
+1. 兼容两条 initialized 路径：`initialized`（历史兼容）与 `notifications/initialized`（规范路径）。
+2. notification 固定语义：HTTP `202` + 空 body。
+3. 非法请求语义统一：`-32600` / `-32700` 对应 HTTP `400`。
+4. batch JSON-RPC 数组请求明确不支持：返回 `-32600`。
+5. Codex 配置默认带 `Content-Type` header，以兼容 Claude Code / cc-switch 的统一配置策略。
 
-1. 协议兼容阻塞（启动失败）
-   - 服务端处理 `initialized`，但未处理 `notifications/initialized`。
-   - 请求/响应类型仍以“有 id 的 request-response”为默认模型，notification 语义未被明确定义。
-2. 产品接入阻塞（可用性差）
-   - 配置生成器与偏好设置 UI 无 Codex 选项。
-   - 用户只能手工配置，且很难定位握手问题。
+## 3. Phase 1：协议兼容修复（已完成）
 
-## 3. 设计原则
+实现点：
 
-1. 协议优先：先修复握手语义，再做配置/UI/文档。
-2. 向后兼容：保留 `initialized`（历史兼容），新增 `notifications/initialized`（规范路径）。
-3. 明确语义：notification 不走常规 JSON-RPC 响应路径，避免“看似成功但传输层异常”。
-4. 可回归：每阶段必须有可复现脚本、最小测试矩阵和可观测日志。
+1. `streamableMCPServer.ts` 支持 `notifications/initialized`。
+2. `MCPRequest.id` 设为可选，区分 request 与 notification。
+3. notification 请求不再构造 JSON-RPC 响应。
+4. `supportedMethods` 补充 `notifications/initialized`。
+5. batch 请求返回 `-32600`。
 
-## 4. Phase 1：协议兼容修复（阻塞项）
+运行态验收（2026-03-05）：
 
-目标：Codex 握手稳定通过，不再出现 `initialized notification` 导致的连接中断。
+1. `GET /mcp` -> `200`
+2. `initialize` -> `200`
+3. `notifications/initialized` -> `202` + 空 body
+4. `tools/list` -> `200`
+5. batch 请求 -> `400 + -32600`
 
-### 4.1 协议语义（必须明确）
+## 4. Phase 2：Codex 配置生成与 UI（已完成）
 
-服务端按请求类型分流：
+实现点：
 
-1. 普通请求（有 `id`）
-   - 返回标准 JSON-RPC response（`result` 或 `error`）。
-2. notification（无 `id`）
-   - 服务端执行副作用逻辑并记录日志。
-   - HTTP **固定返回** `202 Accepted` + 空 body（`Content-Length: 0`）。
-   - 不返回 JSON-RPC `error`（notification 不期望响应）。
-3. 非法请求
-   - 对“应为 request 却缺失 id”的场景返回 `-32600`（`id: null`）。
-   - 解析失败返回 `-32700`。
+1. `clientConfigGenerator.ts` 新增 `codex` 客户端。
+2. 增加 TOML 输出能力（`[mcp_servers."..."]`）。
+3. Codex TOML 默认包含：
+- `[mcp_servers."...".headers]`
+- `"Content-Type" = "application/json"`
+4. 设置页客户端顺序调整为：
+- 第 1 项：`Claude Code`
+- 第 2 项：`Codex CLI`
+5. 中英文文案补齐（含“与 Claude Code / cc-switch 统一配置”说明）。
 
-### 4.2 代码改动（最小且完整）
+## 5. Phase 3：文档一致性（已完成）
 
-1. `zotero-mcp-plugin/src/modules/streamableMCPServer.ts`
-   - `MCPRequest.id` 改为可选：`id?: string | number | null`。
-   - 增加请求分类逻辑：`isNotification = !("id" in request) || request.id === null`。
-   - `processRequest()` 同时支持：
-     - `notifications/initialized`
-     - `initialized`（兼容）
-   - `initialized`/`notifications/initialized` 对 notification 路径不构造 JSON-RPC response。
-   - `getStatus().supportedMethods` 增加 `notifications/initialized`。
-2. `zotero-mcp-plugin/src/modules/httpServer.ts`
-   - 接住 notification 无响应体语义，输出 `202 Accepted` + `Content-Length: 0`。
-   - 保持现有 session 与 keep-alive 行为，不额外引入破坏性变更。
-3. 类型统一
-   - 响应类型需允许“无 JSON-RPC body”的 HTTP 返回模型，避免仅靠 `MCPResponse` 强行表示 notification。
+本次修订目标：
 
-### 4.3 测试与验收
+1. README 与当前实现对齐。
+2. 增加 Codex CLI 配置与验证步骤。
+3. 固化握手链路：`initialize -> notifications/initialized -> tools/list -> tools/call`。
+4. 明确 batch 不支持与 initialized notification 排障。
+5. 清理旧链路文案（`zotero-mcp-server`、`23119`、`node + index.js`）。
 
-新增最小测试集（必须包含）：
+## 6. Phase 4：本地回归与发布准备（待执行）
 
-1. 单元级（`mcpTest.ts`）
-   - `initialize` 正常响应。
-   - `notifications/initialized`（无 `id`）可处理且不报错。
-   - `initialized`（有 `id`）保持兼容。
-   - 非法方法在 request/notification 两种路径语义正确。
-2. 传输级（HTTP）
-   - 通过 `/mcp` 发起 `initialize -> notifications/initialized -> tools/list -> tools/call` 全链路。
-   - 验证 notification 返回符合预期：状态码 `202`、空 body、`Content-Length: 0`。
+仅本地执行，不发布、不推送。
 
-### 4.4 Batch 请求策略（显式决策）
+本地回归清单：
 
-当前版本明确策略如下：
+1. `npm run build`（`zotero-mcp-plugin`）。
+2. 安装最新本地 `.xpi` 并重启 Zotero。
+3. 验证 `/mcp` 基础握手链路。
+4. 通过 Codex CLI 执行一次 `tools/list` 与一次工具调用。
+5. 通过 Claude Code 做一次回归验证（统一 headers 配置）。
 
-1. `/mcp` 仅支持单个 JSON-RPC 对象请求。
-2. 若收到 JSON 数组（batch 请求），返回 `-32600 Invalid Request`（`id: null`）。
-3. 在 README 故障排查中明确“当前不支持 batch”，避免客户端误用。
-
-验收门槛：
-
-1. Codex CLI 接入后稳定握手，不再出现：
-   - `Transport channel closed, when send initialized notification`
-2. `tools/list`、`tools/call` 可持续成功。
-3. Claude Code +（Gemini CLI 或 Qwen Code）回归通过。
-4. 非法 batch 请求行为与文档一致（`-32600`）。
-
-## 5. Phase 2：Codex 配置生成与 UI 支持
-
-目标：用户无需手写配置即可完成 Codex 接入。
-
-### 5.1 代码改动
-
-1. `zotero-mcp-plugin/src/modules/clientConfigGenerator.ts`
-   - 新增 `codex` 客户端类型。
-   - 补充 Codex CLI 指引与命令示例。
-   - 新增 TOML 输出能力（通过 `renderConfig` 分支）。
-   - Codex 配置默认带 `headers.Content-Type`，与 Claude Code / cc-switch 统一配置兼容。
-2. `zotero-mcp-plugin/addon/content/preferences.xhtml`
-   - 客户端下拉新增 Codex，且顺序置于 Claude Code 之后（第 2 项）。
-3. i18n
-   - `addon/locale/en-US/preferences.ftl`
-   - `addon/locale/zh-CN/preferences.ftl`
-   - 增加 Codex 相关文本 key。
-
-### 5.2 验收标准
-
-1. UI 可选 Codex，点击生成后输出结构正确。
-2. 指引命令在当前版本 Codex CLI 上实测可用（在文档标注验证日期）。
-3. 中英文文本无缺失 key。
-
-## 6. Phase 3：文档一致性修复
-
-目标：让 README 与真实行为一致，降低重复报错。
-
-更新文件：
-
-1. `README.md`
-2. `README-zh.md`
-
-内容要求：
-
-1. 新增 Codex 接入章节（CLI + 配置文件方式）。
-2. 明确握手链路：`initialize -> notifications/initialized -> tools/list/tools/call`。
-3. 故障排查新增 `initialized notification` 专项条目。
-4. 必须清理与“集成 HTTP 架构”不一致的旧排查内容：
-   - 旧 `node + index.js` 链路
-   - 旧 `zotero-mcp-server` 目录链路
-   - 旧端口 `23119` 相关描述（统一到当前端口策略）
-
-验收标准：
-
-1. 用户按文档步骤可直接完成接入。
-2. 文档命令、配置字段、端口示例与当前实现一致。
-
-## 7. Phase 4：发布与回归
-
-目标：可安全发布并关闭相关 issue。
-
-流程建议：
-
-1. 在 fork 分支完成 Phase 1~3。
-2. 回归矩阵（最小）：
-   - Codex CLI（必测）
-   - Claude Code（回归）
-   - Gemini CLI 或 Qwen Code（回归）
-3. PR 描述中明确：
-   - 根因
-   - 协议语义决策（notification 响应）
-   - 回归结果
-4. 关联上游 issue：#24 #35 #36。
-
-发布检查清单（必须满足）：
-
-1. 版本与分发元数据同步更新：
-   - `zotero-mcp-plugin/package.json`
-   - `zotero-mcp-plugin/update.json`
-   - `zotero-mcp-plugin/update-beta.json`（如发布 beta）
-2. 变更日志明确包含：
-   - `notifications/initialized` 兼容修复
-   - Codex 配置生成支持
-   - 文档迁移与旧链路清理
-3. 发布门槛：
-   - Codex CLI 通过为硬门槛
-   - Codex Desktop 未验证不阻塞本次发布，但需在 release note 标注“待验证”
-
-## 8. 风险与缓解
-
-1. 风险：notification 返回语义实现不一致导致客户端兼容抖动。
-   - 缓解：在方案中固定语义并写入测试。
-2. 风险：Codex 配置格式/命令变更。
-   - 缓解：文档标注“验证日期 + 版本”；生成器集中维护。
-3. 风险：README 与 UI 引导不一致。
-   - 缓解：同一 PR 内同步改代码与文档。
-
-## 9. 交付拆分建议
-
-1. Commit A：Phase 1 协议修复 + 测试
-2. Commit B：Phase 2 Codex 配置生成 + UI + i18n
-3. Commit C：Phase 3 文档更新
-
-每个 commit 保持“可单独 review、可单独验证”。
+完成上述清单后，再决定是否进入发布流程。
