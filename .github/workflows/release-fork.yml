@@ -1,0 +1,48 @@
+name: Release Zotero MCP Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: zotero-mcp-plugin/package-lock.json
+
+      - name: Install dependencies
+        working-directory: zotero-mcp-plugin
+        run: npm ci
+
+      - name: Build plugin
+        working-directory: zotero-mcp-plugin
+        run: npm run build
+
+      - name: Prepare release asset
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          cp zotero-mcp-plugin/.scaffold/build/zotero-mcp-plugin.xpi \
+            "zotero-mcp-plugin-${TAG_NAME}.xpi"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            zotero-mcp-plugin-${{ github.ref_name }}.xpi
